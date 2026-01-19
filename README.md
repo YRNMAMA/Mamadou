@@ -65,4 +65,4 @@ his-afp
 - Inviare pull request con descrizione e test
 
 # Licenza
-Aggiungere qui il tipo di licenza (es. MIT) e inserire il file `LICENSE` nel repository.
+Questo progetto è concesso in licenza sotto la Licenza MIT - vedere il file [LICENSE](LICENSE) per i dettagli.
