@@ -56,8 +56,11 @@ export const loginFn = catchAsync(async (req, res, next) => {
 		{ expiresIn: '1h' }
 	);
 
-	res.json({
-		token,
-		user: { username: user.username, role: user.role }
+	res.status(200).json({
+		status: 'success',
+		data: {
+			token,
+			user: { username: user.username, role: user.role }
+		}
 	});
 });

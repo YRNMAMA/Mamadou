@@ -44,7 +44,11 @@ export const retrieveActiveAdmissionsFn = catchAsync(async (req, res) => {
 
 	const result = await pool.query(query);
 
-	res.json(result.rows);
+	res.status(200).json({
+		status: 'success',
+		results: result.rowCount,
+		data: result.rows
+	});
 });
 
 /**
@@ -75,7 +79,11 @@ export const retrieveAdmissionByIDFn = catchAsync(async (req, res, next) => {
 	if (result.rows.length === 0){
 		return next(new AppError("Accesso non trovato con questo ID", 404));
 	}
-	res.json(result.rows[0]);
+
+	res.status(200).json({
+		status: 'success',
+		data: result.rows[0]
+	});
 });
 
 /**
@@ -126,28 +134,36 @@ export const insertNewAdmissionFn = catchAsync(async (req, res) => {
 
 	// Restituisco l'ID creato così il frontend può navigare al dettaglio
 	res.status(201).json({
-		id: insertAdm.rows[0].id,
-		braccialetto: insertAdm.rows[0].braccialetto,
-		message: "Accesso creato con successo"
+		status: 'success',
+		message: "Accesso creato con successo",
+		data: {
+			id: insertAdm.rows[0].id,
+			braccialetto: insertAdm.rows[0].braccialetto
+		}
 	});
 });
 
 /**
  * PATCH /admissions/:id/status
  */
-export const changeAdmissionsStatusByIDFn = catchAsync(async (req, res) => {
+export const changeAdmissionsStatusByIDFn = catchAsync(async (req, res, next) => {
 	const { id } = req.params;
 	const { nuovoStato } = req.body; // Es. 'VIS', 'DIM'
 
 	// Validazione semplice
 	const allowed = ['ATT', 'VIS', 'OBI', 'RIC', 'DIM'];
 	if (!allowed.includes(nuovoStato)) {
-		return new AppError("Stato non valido fornito", 400);
+		return next(new AppError("Stato non valido fornito", 400));
 	}
 	const result = await pool.query(
 		`UPDATE admissions SET stato = $1, updated_at = NOW() WHERE id = $2 RETURNING id, stato`,
 		[nuovoStato, id]
 	);
-	if (result.rows.length === 0) return new AppError("Accesso non trovato con questo ID", 404);
-	res.json(result.rows[0]);
+
+	if (result.rows.length === 0) return next(new AppError("Accesso non trovato", 404));
+
+	res.status(200).json({
+		status: 'success',
+		data: result.rows[0]
+	});
 });

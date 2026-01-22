@@ -1,19 +1,14 @@
-import {pool} from "./dbSession.js";
+import { pool } from "./dbSession.js";
+import { catchAsync } from "../utils/errorHandler.js";
 
-export const retrieveHealthStatusFn = async (req, res) => {
-	try {
-		await pool.query('SELECT 1');
-		res.json({
-			status: 'UP',
+export const retrieveHealthStatusFn = catchAsync(async (req, res) => {
+	await pool.query('SELECT 1');
+	res.status(200).json({
+		status: 'success',
+		data: {
+			service: 'UP',
 			database: 'CONNECTED',
-			timestamp: new Date().toISOString(),
 			uptime: process.uptime()
-		});
-	} catch (err) {
-		res.status(503).json({
-			status: 'DOWN',
-			database: 'DISCONNECTED',
-			error: err.message
-		});
-	}
-}
+		}
+	});
+});
