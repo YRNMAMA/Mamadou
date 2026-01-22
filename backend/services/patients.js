@@ -1,155 +1,151 @@
 import {pool} from "./dbSession.js";
 
 /**
- * Recupera tutti gli accessi attivi (non dimessi o ricoverati) con i dati del paziente e del colore di triage.
- * @param req
- * @param res
- * @returns {Promise<void>}
+ * GET /admissions
+ * Recupera accessi attivi con JOIN sulle tabelle di lookup.
  */
 export const retrieveActiveAdmissionsFn = async (req, res) => {
 	try {
 		const query = `
-      SELECT
-        a.id,
-        a.braccialetto,
-        a.patologia_codice,
-        a.data_ora_ingresso,
-        a.stato,
-        -- Dati Colore (Join)
-        a.codice_colore as color_code,
-        tc.hex_value as color_hex,
-        tc.display_name as color_name,
-        tc.priority as color_priority,
-        -- Dati Paziente
-        p.nome,
-        p.cognome,
-        p.data_nascita,
-        p.codice_fiscale
-      FROM admissions a
-             JOIN patients p ON a.patient_id = p.id
-             LEFT JOIN triage_colors tc ON a.codice_colore = tc.code
-      WHERE a.stato NOT IN ('DIM', 'RIC')
-      ORDER BY tc.priority, a.data_ora_ingresso DESC
-    `;
+            SELECT
+                a.id,
+                a.braccialetto,
+                a.data_ora_ingresso AS "dataOraIngresso",
+                a.stato,
+                a.note_triage AS "noteTriage",
+
+                -- Oggetto Paziente appiattito o strutturato (qui uso prefissi per chiarezza)
+                p.nome,
+                p.cognome,
+                p.data_nascita AS "dataNascita",
+                p.codice_fiscale AS "codiceFiscale",
+
+                -- Dati Patologia
+                path.code AS "patologiaCode",
+                path.description AS "patologiaDescrizione",
+
+                -- Dati Colore
+                tc.code AS "coloreCode",
+                tc.hex_value AS "coloreHex",
+                tc.display_name AS "coloreNome",
+
+                -- Dati Modalità Arrivo
+                am.code AS "modalitaArrivoCode",
+                am.description AS "modalitaArrivoDescrizione"
+
+            FROM admissions a
+                     JOIN patients p ON a.patient_id = p.id
+                     LEFT JOIN triage_colors tc ON a.codice_colore = tc.code
+                     LEFT JOIN pathologies path ON a.patologia_code = path.code
+                     LEFT JOIN arrival_modes am ON a.modalita_arrivo_code = am.code
+            WHERE a.stato NOT IN ('DIM', 'RIC')
+            ORDER BY tc.priority, a.data_ora_ingresso DESC
+		`;
+
 		const result = await pool.query(query);
 
-		// Mappiamo i risultati per strutturare meglio l'oggetto colore per il FE se necessario,
-		// oppure lo lasciamo piatto. Qui restituisco un JSON arricchito.
-		const mappedRows = result.rows.map(row => {
-			const tmp = {
-				...row,
-				codice_colore: row.color_code ? {
-					code: row.color_code,
-					hex: row.color_hex,
-					display: row.color_name,
-					priority: row.color_priority
-				} : null
-			}
-			delete tmp.color_code;
-			delete tmp.color_hex;
-			delete tmp.color_name;
-			delete tmp.color_priority;
-			return tmp;
-		});
-		res.json(mappedRows);
+		// Opzionale: Se vuoi strutturare il JSON a nido (nested), puoi farlo qui.
+		// Altrimenti restituiamo l'oggetto piatto che è ottimo per le Table/Griglie Frontend.
+		res.json(result.rows);
+
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
 };
 
 /**
- * Recupera un singolo accesso tramite ID, includendo i dati del paziente e del colore di triage.
- * @param req
- * @param res
- * @returns {Promise<*>}
+ * GET /admissions/:id
  */
 export const retrieveAdmissionByIDFn = async (req, res) => {
+	const { id } = req.params;
 	try {
+		// Stessa query di sopra, ma filtrata per ID
 		const query = `
-      SELECT a.*, p.*, 
-             tc.hex_value, tc.display_name, tc.priority
-      FROM admissions a
-      JOIN patients p ON a.patient_id = p.id
-      LEFT JOIN triage_colors tc ON a.codice_colore = tc.code
-      WHERE a.id = $1
-    `;
-		const result = await pool.query(query, [req.params.id]);
-		if (result.rows.length === 0) return res.status(404).json({ error: "Paziente non trovato" });
-
-		const row = result.rows[0];
-		// Ricostruiamo l'oggetto risposta pulito
-		const response = {
-			...row,
-			codice_colore: row.codice_colore ? {
-				code: row.codice_colore,
-				hex: row.hex_value,
-				display: row.display_name,
-				priority: row.priority
-			} : null
-		};
-
-		res.json(response);
+            SELECT
+                a.id,
+                a.braccialetto,
+                a.data_ora_ingresso AS "dataOraIngresso",
+                a.stato,
+                a.note_triage AS "noteTriage",
+                p.nome, p.cognome, p.data_nascita AS "dataNascita", p.codice_fiscale AS "codiceFiscale",
+                path.code AS "patologiaCode", path.description AS "patologiaDescrizione",
+                tc.code AS "coloreCode", tc.hex_value AS "coloreHex", tc.display_name AS "coloreNome",
+                am.code AS "modalitaArrivoCode", am.description AS "modalitaArrivoDescrizione"
+            FROM admissions a
+                     JOIN patients p ON a.patient_id = p.id
+                     LEFT JOIN triage_colors tc ON a.codice_colore = tc.code
+                     LEFT JOIN pathologies path ON a.patologia_code = path.code
+                     LEFT JOIN arrival_modes am ON a.modalita_arrivo_code = am.code
+            WHERE a.id = $1
+		`;
+		const result = await pool.query(query, [id]);
+		if (result.rows.length === 0) return res.status(404).json({ error: "Accesso non trovato" });
+		res.json(result.rows[0]);
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
 };
 
 /**
- * Inserisce un nuovo accesso sanitario, creando il paziente se non esistente.
- * @param req
- * @param res
- * @returns {Promise<*>}
+ * POST /admissions
+ * Crea un nuovo accesso. Gestisce Paziente e Admission in transazione.
  */
 export const insertNewAdmissionFn = async (req, res) => {
-// Controllo Ruolo: AMM non può inserire dati clinici
-	if (req.user.role === 'AMM') {
-		return res.status(403).json({ error: "Gli amministrativi non possono inserire nuovi accessi sanitari." });
-	}
+	const {
+		nome, cognome, dataNascita, codiceFiscale, // Dati Paziente
+		patologiaCode, codiceColore, modalitaArrivoCode, noteTriage // Dati Accesso (Notare i suffix 'Code')
+	} = req.body;
 
 	const client = await pool.connect();
 	try {
-		await client.query('BEGIN'); // Inizia transazione
+		await client.query('BEGIN');
 
-		const {
-			nome, cognome, dataDiNascita, codiceFiscale, // Anagrafica
-			via, civico, comune, provincia,             // Indirizzo
-			patologia, codiceColore, modalitaArrivo     // Sanitaria (codiceColore deve essere una stringa es. 'ROSSO')
-		} = req.body;
+		// 1. Upsert Paziente
+		let patientRes = await client.query(
+			`INSERT INTO patients (nome, cognome, data_nascita, codice_fiscale)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (codice_fiscale) DO UPDATE SET 
+                nome = EXCLUDED.nome, 
+                cognome = EXCLUDED.cognome 
+             RETURNING id`,
+			[nome, cognome, dataNascita, codiceFiscale]
+		);
+		const patientId = patientRes.rows[0].id;
 
-		// A. Gestione Paziente (Check se esiste o crea)
-		let patientId;
-		const patientCheck = await client.query('SELECT id FROM patients WHERE codice_fiscale = $1', [codiceFiscale]);
-
-		if (patientCheck.rows.length > 0) {
-			patientId = patientCheck.rows[0].id;
-		} else {
-			const insertP = await client.query(
-				`INSERT INTO patients (nome, cognome, data_nascita, codice_fiscale, indirizzo_via, indirizzo_civico, comune, provincia)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-				[nome, cognome, dataDiNascita, codiceFiscale, via, civico, comune, provincia]
-			);
-			patientId = insertP.rows[0].id;
-		}
-
-		// B. Generazione Braccialetto (YYYY-XXXX)
+		// 2. Generazione Braccialetto
 		const year = new Date().getFullYear();
-		const countRes = await client.query("SELECT count(*) FROM admissions WHERE braccialetto LIKE $1", [`${year}-%`]);
+		const countRes = await client.query(`SELECT COUNT(*) FROM admissions WHERE braccialetto LIKE $1`, [`${year}-%`]);
 		const nextNum = Number.parseInt(countRes.rows[0].count) + 1;
 		const braccialetto = `${year}-${String(nextNum).padStart(4, '0')}`;
 
-		// C. Creazione Accesso
-		// Nota: 'codiceColore' qui è la stringa chiave (es. 'ROSSO') che fa riferimento a triage_colors(code)
-		const insertAdm = await client.query(
-			`INSERT INTO admissions (patient_id, braccialetto, stato, patologia_codice, codice_colore, modalita_arrivo)
-       VALUES ($1, $2, 'ATT', $3, $4, $5) RETURNING *`,
-			[patientId, braccialetto, patologia, codiceColore, modalitaArrivo]
-		);
+		// 3. Insert Accesso
+		const insertQuery = `
+            INSERT INTO admissions 
+            (patient_id, braccialetto, stato, patologia_code, codice_colore, modalita_arrivo_code, note_triage)
+            VALUES ($1, $2, 'ATT', $3, $4, $5, $6)
+            RETURNING id, braccialetto
+        `;
 
-		await client.query('COMMIT'); // Conferma transazione
-		res.status(201).json(insertAdm.rows[0]);
+		const insertAdm = await client.query(insertQuery, [
+			patientId, braccialetto, patologiaCode, codiceColore, modalitaArrivoCode, noteTriage
+		]);
+
+		await client.query('COMMIT');
+
+		// Restituisco l'ID creato così il frontend può navigare al dettaglio
+		res.status(201).json({
+			id: insertAdm.rows[0].id,
+			braccialetto: insertAdm.rows[0].braccialetto,
+			message: "Accesso creato con successo"
+		});
 
 	} catch (err) {
-		await client.query('ROLLBACK'); // Annulla tutto se errore
+		await client.query('ROLLBACK');
+		console.error("Errore inserimento:", err);
+		// Gestione errore Foreign Key (es. Codice Patologia errato)
+		if (err.code === '23503') {
+			return res.status(400).json({ error: "Codice Patologia, Colore o Modalità non valido." });
+		}
 		res.status(500).json({ error: err.message });
 	} finally {
 		client.release();
@@ -157,25 +153,26 @@ export const insertNewAdmissionFn = async (req, res) => {
 };
 
 /**
- * Cambia lo stato di un accesso sanitario tramite ID.
- * @param req
- * @param res
- * @returns {Promise<*>}
+ * PATCH /admissions/:id/status
  */
 export const changeAdmissionsStatusByIDFn = async (req, res) => {
-	const { nuovoStato } = req.body;
-	// Allineato con l'ENUM 'admission_status' del database
-	const allowed = ['ATT', 'VIS', 'OBI', 'RIC', 'DIM'];
+	const { id } = req.params;
+	const { nuovoStato } = req.body; // Es. 'VIS', 'DIM'
 
-	if (!allowed.includes(nuovoStato)) return res.status(400).json({ error: "Stato non valido" });
+	// Validazione semplice
+	const allowed = ['ATT', 'VIS', 'OBI', 'RIC', 'DIM'];
+	if (!allowed.includes(nuovoStato)) {
+		return res.status(400).json({ error: "Stato non valido" });
+	}
 
 	try {
 		const result = await pool.query(
-			'UPDATE admissions SET stato = $1 WHERE id = $2 RETURNING *',
-			[nuovoStato, req.params.id]
+			`UPDATE admissions SET stato = $1, updated_at = NOW() WHERE id = $2 RETURNING id, stato`,
+			[nuovoStato, id]
 		);
+		if (result.rows.length === 0) return res.status(404).json({ error: "Accesso non trovato" });
 		res.json(result.rows[0]);
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
-}
+};

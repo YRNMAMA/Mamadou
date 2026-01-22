@@ -3,8 +3,12 @@ import cors from 'cors';
 import client from 'prom-client';
 import responseTime from "response-time";
 import {authenticateTokenFn, loginFn} from "./services/auth.js";
-import {retrieveTriageColorsFn} from "./services/resources.js";
 import {retrieveHealthStatusFn} from "./services/health.js";
+import {
+  retrieveTriageColorsFn,
+  retrieveArrivalModesFn,
+  retrievePathologiesFn
+} from "./services/resources.js";
 import {
   changeAdmissionsStatusByIDFn,
   insertNewAdmissionFn,
@@ -66,19 +70,15 @@ app.get('/health', retrieveHealthStatusFn);
 // 1. LOGIN
 app.post('/auth/login', loginFn);
 
-// 2. CONFIGURAZIONE: LISTA COLORI TRIAGE
+// 2. CONFIGURAZIONI / RISORSE
 app.get('/resources/triage-colors', authenticateTokenFn, retrieveTriageColorsFn);
+app.get('/resources/pathologies', authenticateTokenFn, retrievePathologiesFn);
+app.get('/resources/arrival-modes', authenticateTokenFn, retrieveArrivalModesFn);
 
-// 3. LISTA PAZIENTI ATTIVI (Stato != DIM)
+// 3. GESTIONE PAZIENTI / ACCESSI
 app.get('/admissions', authenticateTokenFn, retrieveActiveAdmissionsFn);
-
-// 4. DETTAGLIO PAZIENTE
 app.get('/admissions/:id', authenticateTokenFn, retrieveAdmissionByIDFn);
-
-// 5. INSERIMENTO PAZIENTE (Nuovo Accesso)
 app.post('/admissions', authenticateTokenFn, insertNewAdmissionFn);
-
-// 6. CAMBIO STATO
 app.patch('/admissions/:id/status', authenticateTokenFn, changeAdmissionsStatusByIDFn);
 
 // Avvio Server
