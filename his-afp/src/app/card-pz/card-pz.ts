@@ -1,9 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { CardModule } from 'primeng/card';
 import { Button } from 'primeng/button';
-import { JsonPipe } from '@angular/common';
 
-interface Paziente {
+export interface Paziente {
   id: string;
   nome: string;
   cognome: string;
@@ -16,7 +15,7 @@ interface Paziente {
 
 @Component({
   selector: 'his-card-pz',
-  imports: [CardModule, Button, JsonPipe],
+  imports: [CardModule, Button],
   templateUrl: './card-pz.html',
   styleUrl: './card-pz.scss',
 })
@@ -35,7 +34,6 @@ export class CardPz {
 
   cambiaNome() {
     this.nome = 'Gian';
-
     // this.paziente = "Lucio";
     //this.paziente.set('Lucio');
   }
