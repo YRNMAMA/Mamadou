@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "afp-his": {
+    "his-afp": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -15,7 +15,7 @@
       },
       "root": "",
       "sourceRoot": "src",
-      "prefix": "app",
+      "prefix": "his",
       "architect": {
         "build": {
           "builder": "@angular/build:application",
@@ -30,8 +30,8 @@
               }
             ],
             "styles": [
-              "src/tailwind.config.css",
-              "src/styles.scss"
+              "src/styles.scss",
+              "src/tailwind.config.css"
             ]
           },
           "configurations": {
@@ -62,10 +62,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "afp-his:build:production"
+              "buildTarget": "his-afp:build:production"
             },
             "development": {
-              "buildTarget": "afp-his:build:development"
+              "buildTarget": "his-afp:build:development"
             }
           },
           "defaultConfiguration": "development"

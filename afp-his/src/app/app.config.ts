@@ -1,23 +1,22 @@
-import Aura from '@primeuix/themes/aura';
-import { providePrimeNG } from 'primeng/config';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
+import { providePrimeNG } from 'primeng/config'
+import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
-  providers: [providePrimeNG({
-    theme: {
-      preset: Aura, // Tema di default PrimeNG
-      options: {
-        ripple: true, // Animazioni
-        darkModeSelector: '.my-app-dark' // Tema scuro
-      }
-    }
-  }),
-  
+  providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes)
+    provideRouter(routes),
+    providePrimeNG({
+      theme: {
+        preset: Aura,
+        options: {
+          ripple: true,
+          darkModeSelector: '.my-app-dark',
+        }
+      }
+    }),
   ]
 };
