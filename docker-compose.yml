@@ -30,5 +30,31 @@ services:
       - db
     restart: always
 
+  fe-sio:
+    build:
+      context: ./his-afp
+      dockerfile: Dockerfile
+    image: his-afp:${SVI_VERSION:-latest}
+    ports:
+      - "8999:80"
+
+  fe-prod:
+    build:
+      context: ./his-afp
+      dockerfile: Dockerfile
+    image: his-afp:${PROD_VERSION:-latest}
+    container_name: fe-prod
+    ports:
+      - "80:80"
+
+  fe-test:
+    build:
+      context: ./his-afp
+      dockerfile: Dockerfile
+    image: his-afp:${TEST_VERSION:-latest}
+    container_name: fe-TEST
+    ports:
+      - "8080:80"
+
 volumes:
   pg_data:
