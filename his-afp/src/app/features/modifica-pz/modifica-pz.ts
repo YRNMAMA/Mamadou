@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, effect, inject, input, untracked } from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { PatientAdmission, PazienteDTO } from '../../core/Pazienti/Pazienti.model';
+import { environment } from '../../../environments/environment';
 import { APIResponse } from '../../core/models/APIResponse.model';
 import { Button } from 'primeng/button';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -36,7 +37,7 @@ export class ModificaPz {
   gestioneRisorse = inject(GestioneRisorse);
   patientManager = inject(PatientManager);
   patientReq = httpResource<APIResponse<PazienteDTO>>(
-    () => `http://localhost:3000/admissions/${this.patientId()}`,
+    () => `${environment.apiUrl}/admissions/${this.patientId()}`,
   );
   readonly maxDate = new Date();
   readonly sexOption = [
@@ -143,4 +144,9 @@ export class ModificaPz {
       this.paziente.markAllAsTouched();
     }
   }
+}
+
+public  ricercaPaziente (string){
+
+  return this.#http.get(${environment.api}/patients/search?query=${string}) 
 }
